@@ -1,0 +1,187 @@
+sing System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using MySql.Data.MySqlClient;
+using System.IO;
+
+namespace Mozaik
+{
+    class Program
+    {
+        static MySqlConnection connect()
+        {
+            MySqlConnection conn = new MySqlConnection("server=localhost;user=root;password=");
+            
+            return conn;
+        }
+        static void drop(string database, MySqlConnection conn)
+        {
+            conn.Open();
+            MySqlCommand cmd = new MySqlCommand("DROP DATABASE IF EXISTS " + database, conn);
+            cmd.ExecuteNonQuery();
+            Console.WriteLine("Törlés: " + database);
+            
+            conn.Close();
+        }
+        static void create(string database, MySqlConnection conn)
+        {
+            conn.Open();
+            var command = new MySqlCommand("CREATE DATABASE IF NOT EXISTS " + database, conn);
+
+            command.ExecuteNonQuery();
+            Console.WriteLine("Létrehozás: " + database);
+            conn.ChangeDatabase(database);
+            conn.Close();
+        }
+        static void Tabelok(string database, MySqlConnection conn)
+        {
+            //igen direkt így írtam a nevét
+            conn.Open();
+            MySqlCommand squel = new MySqlCommand(File.ReadAllText("Adatbazis.sql"), conn);
+            squel.ExecuteNonQuery();
+            Console.WriteLine("Importálgattam a táblákat");
+        }
+        static void szazfo(MySqlConnection conn)
+        {
+
+            MySqlCommand command = new MySqlCommand("SELECT COUNT(rendezveny.letszam) FROM rendezveny WHERE rendezveny.letszam >= 100", conn);
+            var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                Console.WriteLine(reader.GetInt32(0));
+            }
+            reader.Close();
+
+        }
+        static void szegedes(MySqlConnection conn)
+        {
+            int sad = 0;
+            MySqlCommand command2 = new MySqlCommand("SELECT helyszin.id FROM helyszin WHERE helyszin.nev = 'Szeged'", conn);
+            var reader2 = command2.ExecuteReader();
+            while (reader2.Read())
+            {
+                sad = reader2.GetInt32(0);
+            }
+            reader2.Close();
+            MySqlCommand command = new MySqlCommand($"SELECT rendezveny.napokszama, rendezveny.letszam FROM rendezveny WHERE rendezveny.helyszinId = '{sad}'", conn);
+            var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                Console.Write(reader.GetInt32(0));
+                Console.Write(" ");
+                Console.WriteLine(reader.GetInt32(1));
+            }
+            reader.Close();
+        }
+        static void bela(MySqlConnection conn)
+        {
+            MySqlCommand command = new MySqlCommand($"UPDATE kapcsolat SET cegnev =\"BugFix IT\" WHERE kapcsolat.nev = \"Béla\"", conn);
+            command.ExecuteNonQuery();
+            
+        }
+        static void atlag(MySqlConnection conn)
+        {
+            List<int> lita = new List<int>();
+            MySqlCommand command = new MySqlCommand("SELECT rendezveny.tipusId, AVG(rendezveny.letszam) AS average_participants FROM rendezveny GROUP BY rendezveny.tipusId ORDER BY average_participants DESC LIMIT 2", conn);
+            var reader = command.ExecuteReader();
+            
+                int szam = 1;
+            while (reader.Read())
+            {
+                lita.Add(reader.GetInt32(0));
+
+                Console.Write(reader.GetInt32(1));
+                Console.WriteLine($" ({szam}.)");
+                szam++;
+            }
+            reader.Close();
+            szam = 1;
+            for (int i = 0; i < lita.Count; i++)
+            {
+
+                MySqlCommand command2 = new MySqlCommand($"SELECT tipus.nev FROM tipus WHERE tipus.id = '{lita[i]}'", conn);
+                var reader2 = command2.ExecuteReader();
+                while (reader2.Read())
+                {
+                    Console.Write(reader2.GetString(0));
+                    Console.WriteLine($" ({szam}.)");
+                    szam++;
+                }
+                reader2.Close();
+
+
+            }
+
+
+
+
+        }
+        static void helyszinek(MySqlConnection conn)
+        {
+            MySqlCommand command = new MySqlCommand("SELECT helyszin.nev FROM helyszin LEFT JOIN rendezveny ON helyszin.id = rendezveny.helyszinId WHERE rendezveny.helyszinId IS NULL", conn);
+            var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                Console.WriteLine(reader.GetString(0));
+            }
+            reader.Close();
+        }
+        static void treningFees(MySqlConnection conn)
+        {
+            MySqlCommand command = new MySqlCommand(@"SELECT kapcsolat.nev, kapcsolat.email, 
+                                                    COUNT(rendezveny.letszam) * 1000 + 20000 AS szervezesi_dij
+                                                    FROM rendezveny
+                                                    INNER JOIN kapcsolat ON rendezveny.kapcsolatId = kapcsolat.id
+                                                    WHERE rendezveny.tipusId = (SELECT id FROM tipus WHERE nev = 'tréning')
+                                                    GROUP BY rendezveny.kapcsolatId", conn);
+            var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                Console.WriteLine($"Név: {reader.GetString(0)}");
+                Console.WriteLine($"E-mail: {reader.GetString(1)}");
+                Console.WriteLine($"Szervezési díj: {reader.GetInt32(2)} Ft");
+            }
+            reader.Close();
+        }
+
+        static void Main(string[] args)
+        {
+            MySqlConnection conn = connect();
+            drop("mozaik", conn);
+            create("mozaik", conn);
+            Tabelok("mozaik", conn);
+            Console.WriteLine("3. FELADAT");
+            Console.Write("A rendezvények száma: ");
+            szazfo(conn);
+            Console.WriteLine("4. FELADAT");
+            szegedes(conn);
+            Console.WriteLine("5. FELADAT");
+            try
+            {
+                bela(conn);
+                Console.WriteLine(":)");
+            }
+            catch (Exception)
+            {
+
+                Console.WriteLine("¯\\_(ツ)_/¯");
+            }
+            Console.WriteLine("6. FELADAT");
+
+                atlag(conn);
+            Console.WriteLine("7. FELADAT");
+            helyszinek(conn);
+            Console.WriteLine("8. FELADAT");
+            treningFees(conn);
+
+
+
+            
+       
+
+        }
+
+    }
+}
